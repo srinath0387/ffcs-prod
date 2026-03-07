@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Dashboard - FFCS System</title>
+    <link rel="stylesheet" href="/styles.css">
+    <style>
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(6px);
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal {
+            background: var(--bg-card);
+            border: 1px solid var(--border-glass);
+            border-radius: var(--radius-lg);
+            padding: 32px;
+            width: 90%;
+            max-width: 420px;
+            animation: slideUp 0.3s ease;
+        }
+
+        @keyframes slideUp {
+            from {
+                transform: translateY(30px);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .modal h2 {
+            text-align: center;
+            margin-bottom: 8px;
+            color: var(--accent-light);
+        }
+
+        .modal p {
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 13px;
+            margin-bottom: 20px;
+        }
+
+        .modal .icon {
+            text-align: center;
+            font-size: 40px;
+            margin-bottom: 8px;
+        }
+
+        .topbar-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Change Password Modal -->
+    <div class="modal-overlay" id="passwordModal">
+        <div class="modal">
+            <div class="icon">🔐</div>
+            <h2>Change Password</h2>
+            <p id="modalDesc">Update your password for security</p>
+            <form id="changePasswordForm">
+                <div class="form-group">
+                    <label>Current Password</label>
+                    <input type="password" class="form-input" id="currentPassword" required>
+                </div>
+                <div class="form-group">
+                    <label>New Password</label>
+                    <input type="password" class="form-input" id="newPassword" required minlength="6"
+                        placeholder="Min 6 characters">
+                </div>
+                <div class="form-group">
+                    <label>Confirm New Password</label>
+                    <input type="password" class="form-input" id="confirmPassword" required minlength="6">
+                </div>
+                <div id="pwdError" class="error-msg" style="display:none;margin-bottom:12px;"></div>
+                <button type="submit" class="btn btn-primary btn-full">Update Password</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="dashboard">
+        <div class="topbar">
+            <div class="topbar-brand">
+                <div class="icon">🎓</div>
+                <h2>FFCS Student</h2>
+            </div>
+            <div class="topbar-right">
+                <div class="user-info">
+                    <div class="user-avatar" id="userAvatar">S</div>
+                    <div>
+                        <div class="user-name" id="userName">Student</div>
+                        <div class="user-role">STUDENT</div>
+                    </div>
+                </div>
+                <div class="topbar-actions">
+                    <button class="btn btn-outline btn-sm" onclick="openPasswordModal(false)">🔐 Password</button>
+                    <button class="btn btn-outline btn-sm" onclick="logout()">Logout</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="page-header">
+                <h1>🎯 Faculty Selection</h1>
+                <p>Choose your preferred faculty for each course. Seats are limited!</p>
+            </div>
+
+            <div id="selectionsBar"></div>
+            <div class="stats-grid" id="statsGrid"></div>
+            <div id="coursesContainer"></div>
+        </div>
+    </div>
+
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script>
+        let currentUser = null;
+        let mustChangePassword = false;
+
+        async function checkAuth() {
+            try {
+                const res = await fetch('/api/auth/me');
+                const data = await res.json();
+                if (!data.user || data.user.role !== 'student') { window.location.href = '/'; return; }
+                currentUser = data.user;
+                mustChangePassword = data.must_change_password;
+                document.getElementById('userName').textContent = currentUser.name;
+                document.getElementById('userAvatar').textContent = currentUser.name.charAt(0);
+
+                if (mustChangePassword) {
+                    openPasswordModal(true);
+                }
+                loadCourses();
+            } catch { window.location.href = '/'; }
+        }
+
+        function openPasswordModal(forced) {
+            document.getElementById('passwordModal').classList.add('active');
+            document.getElementById('modalDesc').textContent = forced
+                ? 'You must change your default password before continuing.'
+                : 'Update your password for security.';
+            // If forced, clicking outside shouldn't close
+            if (!forced) {
+                document.getElementById('passwordModal').onclick = (e) => {
+                    if (e.target === document.getElementById('passwordModal')) closePasswordModal();
+                };
+            }
+        }
+
+        function closePasswordModal() {
+            if (mustChangePassword) return; // Can't close if forced
+            document.getElementById('passwordModal').classList.remove('active');
+        }
+
+        document.getElementById('changePasswordForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const errEl = document.getElementById('pwdError');
+            errEl.style.display = 'none';
+            const newPwd = document.getElementById('newPassword').value;
+            const confirmPwd = document.getElementById('confirmPassword').value;
+            if (newPwd !== confirmPwd) { errEl.textContent = 'Passwords do not match'; errEl.style.display = 'block'; return; }
+
+            try {
+                const res = await fetch('/api/auth/change-password', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ current_password: document.getElementById('currentPassword').value, new_password: newPwd })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    mustChangePassword = false;
+                    document.getElementById('passwordModal').classList.remove('active');
+                    showToast('Password changed successfully!', 'success');
+                    document.getElementById('changePasswordForm').reset();
+                } else {
+                    errEl.textContent = data.error; errEl.style.display = 'block';
+                }
+            } catch { errEl.textContent = 'Connection failed'; errEl.style.display = 'block'; }
+        });
+
+        async function logout() {
+            await fetch('/api/auth/logout', { method: 'POST' });
+            window.location.href = '/';
+        }
+
+        async function loadCourses() {
+            const [courses, selections] = await Promise.all([
+                fetch('/api/student/courses').then(r => r.json()),
+                fetch('/api/student/selections').then(r => r.json())
+            ]);
+
+            // Selections bar
+            if (selections.length > 0) {
+                document.getElementById('selectionsBar').innerHTML = `
+          <div class="card" style="margin-bottom:20px;">
+            <div class="card-body" style="padding:16px;">
+              <strong>☑️ Your Selections</strong>
+              <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;">
+                ${selections.map(s => `
+                  <span class="badge badge-info" style="font-size:13px;padding:6px 12px;">
+                    ${s.code}: ${s.faculty_name}
+                    <span onclick="dropSelection(${s.id})" style="cursor:pointer;margin-left:6px;color:#ef4444;">✕</span>
+                  </span>
+                `).join('')}
+              </div>
+            </div>
+          </div>`;
+            } else {
+                document.getElementById('selectionsBar').innerHTML = '';
+            }
+
+            // Stats
+            const totalSeats = courses.reduce((s, c) => s + c.faculty.reduce((fs, f) => fs + (f.max_seats - f.enrolled_count), 0), 0);
+            document.getElementById('statsGrid').innerHTML = `
+        <div class="stat-card"><div class="stat-icon purple">📚</div><div class="stat-value">${courses.length}</div><div class="stat-label">Available Courses</div></div>
+        <div class="stat-card"><div class="stat-icon green">☑️</div><div class="stat-value">${selections.length}</div><div class="stat-label">Courses Selected</div></div>
+        <div class="stat-card"><div class="stat-icon blue">📋</div><div class="stat-value">${courses.length - selections.length}</div><div class="stat-label">Remaining</div></div>
+        <div class="stat-card"><div class="stat-icon orange">💺</div><div class="stat-value">${totalSeats}</div><div class="stat-label">Total Open Seats</div></div>
+      `;
+
+            // Courses
+            document.getElementById('coursesContainer').innerHTML = courses.map(course => {
+                if (course.faculty.length === 0) return '';
+                return `
+        <div class="card" style="margin-bottom:24px;">
+          <div class="card-header">
+            <div>
+              <span class="badge badge-warning">${course.code}</span>
+              <strong style="margin-left:8px;">${course.name}</strong>
+              <span style="color:var(--text-muted);font-size:13px;margin-left:8px;">${course.department}</span>
+            </div>
+            <div>
+              ${course.has_selection ? '<span class="badge badge-success" style="font-size:11px;">✓ SELECTED</span>' : ''}
+              <span class="badge badge-info" style="font-size:11px;">${course.faculty.length} FACULTY</span>
+            </div>
+          </div>
+          <div class="card-body" style="padding:0;">
+            ${course.faculty.map(f => {
+                    const pct = f.max_seats > 0 ? (f.enrolled_count / f.max_seats) * 100 : 0;
+                    const seatsLeft = f.max_seats - f.enrolled_count;
+                    const isFull = f.enrolled_count >= f.max_seats;
+                    const isSelected = f.already_selected > 0;
+                    const hasOther = course.has_selection && !isSelected;
+
+                    return `
+              <div class="faculty-row ${isSelected ? 'selected' : ''}" style="display:flex;align-items:center;padding:14px 20px;border-bottom:1px solid var(--border-glass);">
+                <div class="user-avatar" style="width:38px;height:38px;font-size:14px;background:${isSelected ? 'var(--accent)' : 'rgba(99,102,241,0.2)'}">
+                  ${f.faculty_name.split(' ').map(w => w[0]).join('').slice(0, 2)}
+                </div>
+                <div style="flex:1;margin-left:12px;">
+                  <div style="font-weight:600;">${f.faculty_name}</div>
+                  <div style="font-size:12px;color:var(--text-muted);">@${f.faculty_username}</div>
+                </div>
+                <div style="display:flex;align-items:center;gap:12px;">
+                  <div class="seats-bar" style="min-width:120px;">
+                    <div class="progress-bar"><div class="progress-fill ${pct >= 100 ? 'full' : pct >= 75 ? 'high' : ''}" style="width:${Math.min(pct, 100)}%"></div></div>
+                    <span class="seats-text">${seatsLeft}/${f.max_seats} left</span>
+                  </div>
+                  ${isSelected ? '<span class="badge badge-success">✓ SELECTED</span>'
+                            : isFull ? '<span class="slots-full">SLOTS FULL</span>'
+                                : hasOther ? '<span class="badge badge-warning" style="font-size:10px;">ALREADY CHOSE FOR THIS COURSE</span>'
+                                    : `<button class="btn btn-primary btn-sm" onclick="selectFaculty(${f.course_faculty_id})">Select</button>`}
+                </div>
+              </div>`;
+                }).join('')}
+          </div>
+        </div>`;
+            }).join('');
+        }
+
+        async function selectFaculty(cfId) {
+            try {
+                const res = await fetch('/api/student/select', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ course_faculty_id: cfId })
+                });
+                const data = await res.json();
+                if (data.success) { showToast(data.message, 'success'); loadCourses(); }
+                else showToast(data.error, 'error');
+            } catch { showToast('Selection failed', 'error'); }
+        }
+
+        async function dropSelection(id) {
+            if (!confirm('Drop this selection?')) return;
+            try {
+                const res = await fetch(`/api/student/selections/${id}`, { method: 'DELETE' });
+                const data = await res.json();
+                if (data.success) { showToast('Selection dropped', 'success'); loadCourses(); }
+                else showToast(data.error, 'error');
+            } catch { showToast('Drop failed', 'error'); }
+        }
+
+        function showToast(msg, type = 'info') {
+            const c = document.getElementById('toastContainer');
+            const t = document.createElement('div');
+            t.className = `toast toast-${type}`;
+            t.innerHTML = `${type === 'success' ? '✓' : type === 'error' ? '✗' : 'ℹ'} ${msg}`;
+            c.appendChild(t);
+            setTimeout(() => t.remove(), 3000);
+        }
+
+        checkAuth();
+    </script>
+</body>
+
+</html>

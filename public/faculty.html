@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Faculty Dashboard - FFCS System</title>
+  <link rel="stylesheet" href="/styles.css">
+  <style>
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.7);
+      z-index: 1000;
+      justify-content: center;
+      align-items: center;
+      backdrop-filter: blur(6px);
+    }
+
+    .modal-overlay.active {
+      display: flex;
+    }
+
+    .modal {
+      background: var(--bg-card);
+      border: 1px solid var(--border-glass);
+      border-radius: var(--radius-lg);
+      padding: 32px;
+      width: 90%;
+      max-width: 420px;
+      animation: slideUp 0.3s ease;
+    }
+
+    @keyframes slideUp {
+      from {
+        transform: translateY(30px);
+        opacity: 0;
+      }
+
+      to {
+        transform: translateY(0);
+        opacity: 1;
+      }
+    }
+
+    .modal h2 {
+      text-align: center;
+      margin-bottom: 8px;
+      color: var(--accent-light);
+    }
+
+    .modal p {
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 13px;
+      margin-bottom: 20px;
+    }
+
+    .modal .icon {
+      text-align: center;
+      font-size: 40px;
+      margin-bottom: 8px;
+    }
+
+    .topbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Change Password Modal -->
+  <div class="modal-overlay" id="passwordModal">
+    <div class="modal">
+      <div class="icon">🔐</div>
+      <h2>Change Password</h2>
+      <p id="modalDesc">Update your password for security</p>
+      <form id="changePasswordForm">
+        <div class="form-group">
+          <label>Current Password</label>
+          <input type="password" class="form-input" id="currentPassword" required>
+        </div>
+        <div class="form-group">
+          <label>New Password</label>
+          <input type="password" class="form-input" id="newPassword" required minlength="6"
+            placeholder="Min 6 characters">
+        </div>
+        <div class="form-group">
+          <label>Confirm New Password</label>
+          <input type="password" class="form-input" id="confirmPassword" required minlength="6">
+        </div>
+        <div id="pwdError" class="error-msg" style="display:none;margin-bottom:12px;"></div>
+        <button type="submit" class="btn btn-primary btn-full">Update Password</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="dashboard">
+    <div class="topbar">
+      <div class="topbar-brand">
+        <div class="icon">🎓</div>
+        <h2>FFCS Faculty</h2>
+      </div>
+      <div class="topbar-right">
+        <div class="user-info">
+          <div class="user-avatar" id="userAvatar">F</div>
+          <div>
+            <div class="user-name" id="userName">Faculty</div>
+            <div class="user-role">Faculty Member</div>
+          </div>
+        </div>
+        <div class="topbar-actions">
+          <button class="btn btn-outline btn-sm" onclick="openPasswordModal(false)">🔐 Password</button>
+          <button class="btn btn-outline btn-sm" onclick="logout()">Logout</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="main-content">
+      <div class="page-header">
+        <h1>👩‍🏫 Faculty Dashboard</h1>
+        <p>View your assigned courses and enrolled students</p>
+      </div>
+      <div class="stats-grid" id="statsGrid"></div>
+      <div id="coursesContainer"></div>
+    </div>
+  </div>
+
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script>
+    let currentUser = null;
+    let mustChangePassword = false;
+
+    async function checkAuth() {
+      try {
+        const res = await fetch('/api/auth/me');
+        const data = await res.json();
+        if (!data.user || data.user.role !== 'faculty') { window.location.href = '/'; return; }
+        currentUser = data.user;
+        mustChangePassword = data.must_change_password;
+        document.getElementById('userName').textContent = currentUser.name;
+        document.getElementById('userAvatar').textContent = currentUser.name.charAt(0);
+        if (mustChangePassword) openPasswordModal(true);
+        loadCourses();
+      } catch { window.location.href = '/'; }
+    }
+
+    function openPasswordModal(forced) {
+      document.getElementById('passwordModal').classList.add('active');
+      document.getElementById('modalDesc').textContent = forced
+        ? 'You must change your default password before continuing.'
+        : 'Update your password for security.';
+      if (!forced) {
+        document.getElementById('passwordModal').onclick = (e) => {
+          if (e.target === document.getElementById('passwordModal')) closePasswordModal();
+        };
+      }
+    }
+
+    function closePasswordModal() {
+      if (mustChangePassword) return;
+      document.getElementById('passwordModal').classList.remove('active');
+    }
+
+    document.getElementById('changePasswordForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const errEl = document.getElementById('pwdError');
+      errEl.style.display = 'none';
+      const newPwd = document.getElementById('newPassword').value;
+      if (newPwd !== document.getElementById('confirmPassword').value) {
+        errEl.textContent = 'Passwords do not match'; errEl.style.display = 'block'; return;
+      }
+      try {
+        const res = await fetch('/api/auth/change-password', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ current_password: document.getElementById('currentPassword').value, new_password: newPwd })
+        });
+        const data = await res.json();
+        if (data.success) {
+          mustChangePassword = false;
+          document.getElementById('passwordModal').classList.remove('active');
+          showToast('Password changed!', 'success');
+          document.getElementById('changePasswordForm').reset();
+        } else { errEl.textContent = data.error; errEl.style.display = 'block'; }
+      } catch { errEl.textContent = 'Connection failed'; errEl.style.display = 'block'; }
+    });
+
+    async function logout() {
+      await fetch('/api/auth/logout', { method: 'POST' });
+      window.location.href = '/';
+    }
+
+    async function loadCourses() {
+      const courses = await fetch('/api/faculty/courses').then(r => r.json());
+      const totalStudents = courses.reduce((s, c) => s + c.students.length, 0);
+      const totalSeats = courses.reduce((s, c) => s + c.max_seats, 0);
+
+      document.getElementById('statsGrid').innerHTML = `
+        <div class="stat-card"><div class="stat-icon purple">📚</div><div class="stat-value">${courses.length}</div><div class="stat-label">Assigned Courses</div></div>
+        <div class="stat-card"><div class="stat-icon green">👨‍🎓</div><div class="stat-value">${totalStudents}</div><div class="stat-label">Total Enrolled</div></div>
+        <div class="stat-card"><div class="stat-icon blue">💺</div><div class="stat-value">${totalSeats}</div><div class="stat-label">Total Seats</div></div>
+        <div class="stat-card"><div class="stat-icon orange">📊</div><div class="stat-value">${totalSeats > 0 ? Math.round((totalStudents / totalSeats) * 100) : 0}%</div><div class="stat-label">Occupancy Rate</div></div>
+      `;
+
+      const container = document.getElementById('coursesContainer');
+      if (courses.length === 0) {
+        container.innerHTML = '<div class="card"><div class="card-body"><div class="empty-state"><div class="icon">📚</div><h3>No courses assigned yet</h3></div></div></div>';
+        return;
+      }
+
+      container.innerHTML = courses.map((course, i) => {
+        const pct = course.max_seats > 0 ? (course.enrolled_count / course.max_seats) * 100 : 0;
+        let studentsHtml;
+        if (course.students.length === 0) {
+          studentsHtml = '<div class="empty-state" style="padding:24px"><div class="icon">👨‍🎓</div><h3>No students enrolled yet</h3></div>';
+        } else {
+          studentsHtml = `<table>
+            <thead><tr><th>#</th><th>Reg No</th><th>Name</th><th>Email</th><th>Enrolled At</th></tr></thead>
+            <tbody>${course.students.map((s, idx) => `
+              <tr>
+                <td>${idx + 1}</td>
+                <td><strong>${s.regno || s.username}</strong></td>
+                <td>${s.name}</td>
+                <td>${s.email || '-'}</td>
+                <td style="font-size:12px;color:var(--text-muted)">${new Date(s.selected_at).toLocaleString()}</td>
+              </tr>
+            `).join('')}</tbody>
+          </table>`;
+        }
+        return `
+        <div class="card" style="margin-bottom:24px;animation-delay:${i * 0.1}s">
+          <div class="card-header">
+            <div>
+              <span class="badge badge-info">${course.code}</span>
+              <h3 style="display:inline;margin-left:10px">${course.course_name}</h3>
+              <span style="color:var(--text-muted);font-size:13px;margin-left:8px">${course.department}</span>
+            </div>
+            <div class="seats-bar" style="min-width:200px">
+              <div class="progress-bar"><div class="progress-fill ${pct >= 100 ? 'full' : pct >= 75 ? 'high' : pct >= 50 ? 'medium' : 'low'}" style="width:${Math.min(pct, 100)}%"></div></div>
+              <span class="seats-text">${course.enrolled_count}/${course.max_seats} seats</span>
+              ${pct >= 100 ? '<span class="slots-full">SLOTS FULL</span>' : ''}
+            </div>
+          </div>
+          <div class="card-body"><div class="table-wrap">${studentsHtml}</div></div>
+        </div>`;
+      }).join('');
+    }
+
+    function showToast(msg, type = 'info') {
+      const c = document.getElementById('toastContainer');
+      const t = document.createElement('div');
+      t.className = `toast toast-${type}`;
+      t.innerHTML = `${type === 'success' ? '✓' : type === 'error' ? '✗' : 'ℹ'} ${msg}`;
+      c.appendChild(t);
+      setTimeout(() => t.remove(), 3000);
+    }
+
+    checkAuth();
+  </script>
+</body>
+
+</html>

@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - FFCS System</title>
+    <link rel="stylesheet" href="/styles.css">
+    <style>
+        .upload-zone {
+            border: 2px dashed var(--border-glass);
+            border-radius: var(--radius-lg);
+            padding: 32px;
+            text-align: center;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .upload-zone:hover,
+        .upload-zone.dragover {
+            border-color: var(--accent);
+            background: rgba(99, 102, 241, 0.05);
+        }
+
+        .upload-zone input[type="file"] {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        .upload-zone .icon {
+            font-size: 40px;
+            margin-bottom: 12px;
+        }
+
+        .upload-zone h4 {
+            margin-bottom: 8px;
+        }
+
+        .upload-zone p {
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        .upload-result {
+            margin-top: 16px;
+            padding: 16px;
+            border-radius: var(--radius);
+            font-size: 14px;
+        }
+
+        .upload-result.success {
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+
+        .upload-result.error {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+
+        .year-filter {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+
+        .year-filter label {
+            font-size: 13px;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .year-filter select {
+            width: auto;
+            min-width: 150px;
+        }
+
+        .student-count {
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="dashboard">
+        <div class="topbar">
+            <div class="topbar-brand">
+                <div class="icon">🎓</div>
+                <h2>FFCS Admin</h2>
+            </div>
+            <div class="topbar-right">
+                <div class="user-info">
+                    <div class="user-avatar" id="userAvatar">A</div>
+                    <div>
+                        <div class="user-name" id="userName">Admin</div>
+                        <div class="user-role">Administrator</div>
+                    </div>
+                </div>
+                <button class="btn btn-outline btn-sm" onclick="logout()">Logout</button>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="page-header">
+                <h1>📊 Admin Dashboard</h1>
+                <p>Manage courses, faculty, students, and view selection reports</p>
+            </div>
+
+            <div class="stats-grid" id="statsGrid"></div>
+
+            <div class="tabs">
+                <button class="tab active" onclick="switchTab('courses')">📚 Courses</button>
+                <button class="tab" onclick="switchTab('faculty')">👩‍🏫 Faculty</button>
+                <button class="tab" onclick="switchTab('students')">👨‍🎓 Students</button>
+                <button class="tab" onclick="switchTab('selections')">📋 Selections</button>
+                <button class="tab" onclick="switchTab('export')">📥 Export</button>
+            </div>
+
+            <!-- ====== Courses Tab ====== -->
+            <div class="tab-content active" id="tab-courses">
+                <div class="grid-2">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>➕ Add New Course</h3>
+                        </div>
+                        <div class="card-body">
+                            <form id="addCourseForm">
+                                <div class="form-group">
+                                    <label>Course Code</label>
+                                    <input type="text" class="form-input" id="courseCode" placeholder="e.g. CS401"
+                                        required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Course Name</label>
+                                    <input type="text" class="form-input" id="courseName"
+                                        placeholder="e.g. Artificial Intelligence" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Department</label>
+                                    <input type="text" class="form-input" id="courseDept"
+                                        placeholder="e.g. Computer Science" required>
+                                </div>
+                                <div class="form-actions">
+                                    <button type="submit" class="btn btn-primary">Add Course</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>🔗 Assign Faculty to Course</h3>
+                        </div>
+                        <div class="card-body">
+                            <form id="assignFacultyForm">
+                                <div class="form-group">
+                                    <label>Select Course</label>
+                                    <select class="form-input" id="assignCourse" required>
+                                        <option value="">-- Select --</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Select Faculty</label>
+                                    <select class="form-input" id="assignFaculty" required>
+                                        <option value="">-- Select --</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Max Seats</label>
+                                    <input type="number" class="form-input" id="maxSeats" min="1" max="500" value="30"
+                                        required>
+                                </div>
+                                <div class="form-actions">
+                                    <button type="submit" class="btn btn-primary">Assign Faculty</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                <div class="card" style="margin-top: 24px;">
+                    <div class="card-header">
+                        <h3>📚 All Courses</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-wrap" id="coursesTable"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ====== Faculty Tab ====== -->
+            <div class="tab-content" id="tab-faculty">
+                <div class="grid-2">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>➕ Add New Faculty</h3>
+                        </div>
+                        <div class="card-body">
+                            <form id="addFacultyForm">
+                                <div class="form-group">
+                                    <label>Full Name</label>
+                                    <input type="text" class="form-input" id="facultyName"
+                                        placeholder="e.g. Dr. Jane Doe" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Username</label>
+                                    <input type="text" class="form-input" id="facultyUsername"
+                                        placeholder="e.g. janedoe" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Password</label>
+                                    <input type="password" class="form-input" id="facultyPassword"
+                                        placeholder="Min 6 characters" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Email</label>
+                                    <input type="email" class="form-input" id="facultyEmail"
+                                        placeholder="e.g. jane@ffcs.edu">
+                                </div>
+                                <div class="form-actions">
+                                    <button type="submit" class="btn btn-primary">Add Faculty</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>👩‍🏫 Faculty List</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-wrap" id="facultyTable"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ====== Students Tab ====== -->
+            <div class="tab-content" id="tab-students">
+                <!-- Bulk Upload Card -->
+                <div class="card" style="margin-bottom: 24px;">
+                    <div class="card-header">
+                        <h3>📤 Bulk Upload Students (CSV / Excel)</h3>
+                        <a href="/api/admin/students/template" class="btn btn-outline btn-sm">📄 Download Template</a>
+                    </div>
+                    <div class="card-body">
+                        <p style="color: var(--text-secondary); margin-bottom: 16px;">
+                            Upload a CSV or Excel file with columns: <strong>RegNo</strong>, <strong>Name</strong>,
+                            <strong>Email</strong> (optional).
+                            Students will be created with their Reg No as username. You can upload year-wise batches.
+                        </p>
+                        <form id="bulkUploadForm" enctype="multipart/form-data">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Academic Year / Batch</label>
+                                    <input type="text" class="form-input" id="uploadYear" placeholder="e.g. 2024-2025"
+                                        required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Default Password (for all students)</label>
+                                    <input type="text" class="form-input" id="uploadPassword" value="student123"
+                                        required>
+                                </div>
+                            </div>
+                            <div class="upload-zone" id="uploadZone">
+                                <input type="file" id="uploadFile" accept=".csv,.xlsx,.xls" required>
+                                <div class="icon">📁</div>
+                                <h4>Drop CSV or Excel file here</h4>
+                                <p>or click to browse • Accepts .csv, .xlsx, .xls</p>
+                                <p id="fileName"
+                                    style="margin-top:8px;color:var(--accent-light);font-weight:600;display:none;"></p>
+                            </div>
+                            <div class="form-actions">
+                                <button type="submit" class="btn btn-primary" id="uploadBtn">⬆ Upload & Import
+                                    Students</button>
+                            </div>
+                        </form>
+                        <div id="uploadResult"></div>
+                    </div>
+                </div>
+
+                <div class="grid-2">
+                    <!-- Add Single Student -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>➕ Add Single Student</h3>
+                        </div>
+                        <div class="card-body">
+                            <form id="addStudentForm">
+                                <div class="form-group">
+                                    <label>Registration Number</label>
+                                    <input type="text" class="form-input" id="studentRegno" placeholder="e.g. 22BCE1001"
+                                        required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Full Name</label>
+                                    <input type="text" class="form-input" id="studentName" placeholder="e.g. John Smith"
+                                        required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Password</label>
+                                    <input type="password" class="form-input" id="studentPassword"
+                                        placeholder="Min 6 characters" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Email</label>
+                                    <input type="email" class="form-input" id="studentEmail"
+                                        placeholder="e.g. john@ffcs.edu">
+                                </div>
+                                <div class="form-group">
+                                    <label>Year / Batch</label>
+                                    <input type="text" class="form-input" id="studentYear" placeholder="e.g. 2024-2025">
+                                </div>
+                                <div class="form-actions">
+                                    <button type="submit" class="btn btn-primary">Add Student</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Student List -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>👨‍🎓 Student List</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="year-filter">
+                                <label>Filter by Year:</label>
+                                <select class="form-input" id="yearFilter" onchange="loadStudents()">
+                                    <option value="all">All Years</option>
+                                </select>
+                                <span class="student-count" id="studentCount"></span>
+                            </div>
+                            <div class="table-wrap" id="studentTable"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ====== Selections Tab ====== -->
+            <div class="tab-content" id="tab-selections">
+                <div class="card">
+                    <div class="card-header">
+                        <h3>📋 All Faculty Selections</h3>
+                        <button class="btn btn-sm btn-outline" onclick="loadSelections()">🔄 Refresh</button>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-wrap" id="selectionsTable"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ====== Export Tab ====== -->
+            <div class="tab-content" id="tab-export">
+                <div class="card">
+                    <div class="card-header">
+                        <h3>📥 Export Selection Data</h3>
+                    </div>
+                    <div class="card-body">
+                        <p style="color: var(--text-secondary); margin-bottom: 20px;">Download the complete faculty
+                            selection report.</p>
+                        <div class="export-group">
+                            <button class="export-btn csv" onclick="exportData('csv')">📄 Export as CSV</button>
+                            <button class="export-btn excel" onclick="exportData('excel')">📊 Export as Excel</button>
+                            <button class="export-btn pdf" onclick="exportData('pdf')">📑 Export as PDF</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script>
+        let currentUser = null;
+
+        async function checkAuth() {
+            try {
+                const res = await fetch('/api/auth/me');
+                const data = await res.json();
+                if (!data.user || data.user.role !== 'admin') { window.location.href = '/'; return; }
+                currentUser = data.user;
+                document.getElementById('userName').textContent = currentUser.name;
+                document.getElementById('userAvatar').textContent = currentUser.name.charAt(0);
+                loadAll();
+            } catch { window.location.href = '/'; }
+        }
+
+        async function logout() {
+            await fetch('/api/auth/logout', { method: 'POST' });
+            window.location.href = '/';
+        }
+
+        function switchTab(tab) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById('tab-' + tab).classList.add('active');
+            if (tab === 'selections') loadSelections();
+            if (tab === 'students') { loadYears(); loadStudents(); }
+        }
+
+        async function loadAll() {
+            await Promise.all([loadCourses(), loadFaculty(), loadStudents(), loadYears()]);
+            loadStats();
+        }
+
+        async function loadStats() {
+            const [courses, faculty, students, selections] = await Promise.all([
+                fetch('/api/admin/courses').then(r => r.json()),
+                fetch('/api/admin/faculty').then(r => r.json()),
+                fetch('/api/admin/students').then(r => r.json()),
+                fetch('/api/admin/selections').then(r => r.json())
+            ]);
+            document.getElementById('statsGrid').innerHTML = `
+        <div class="stat-card"><div class="stat-icon purple">📚</div><div class="stat-value">${courses.length}</div><div class="stat-label">Courses</div></div>
+        <div class="stat-card"><div class="stat-icon blue">👩‍🏫</div><div class="stat-value">${faculty.length}</div><div class="stat-label">Faculty</div></div>
+        <div class="stat-card"><div class="stat-icon green">👨‍🎓</div><div class="stat-value">${students.length}</div><div class="stat-label">Students</div></div>
+        <div class="stat-card"><div class="stat-icon orange">📋</div><div class="stat-value">${selections.length}</div><div class="stat-label">Selections</div></div>
+      `;
+        }
+
+        // ---- Courses ----
+        async function loadCourses() {
+            const courses = await fetch('/api/admin/courses').then(r => r.json());
+            const select = document.getElementById('assignCourse');
+            select.innerHTML = '<option value="">-- Select --</option>';
+            courses.forEach(c => select.innerHTML += `<option value="${c.id}">${c.code} - ${c.name}</option>`);
+
+            let html = '<table><thead><tr><th>Code</th><th>Course</th><th>Dept</th><th>Faculty</th><th>Actions</th></tr></thead><tbody>';
+            for (const c of courses) {
+                const faculty = await fetch(`/api/admin/courses/${c.id}/faculty`).then(r => r.json());
+                let fHtml = faculty.length === 0 ? '<span style="color:var(--text-muted)">None</span>' :
+                    faculty.map(f => `<div style="display:flex;align-items:center;gap:6px;margin:3px 0;">
+            <span class="badge badge-info">${f.faculty_name}</span>
+            <span style="font-size:11px;color:var(--text-muted)">${f.enrolled_count}/${f.max_seats}</span>
+            <button class="btn btn-danger btn-sm" style="padding:2px 6px;font-size:10px;" onclick="removeFacultyFromCourse(${f.id})">✕</button>
+          </div>`).join('');
+                html += `<tr><td><span class="badge badge-info">${c.code}</span></td><td>${c.name}</td><td>${c.department || '-'}</td><td>${fHtml}</td>
+          <td><button class="btn btn-danger btn-sm" onclick="deleteCourse(${c.id})">Delete</button></td></tr>`;
+            }
+            html += '</tbody></table>';
+            document.getElementById('coursesTable').innerHTML = html;
+        }
+
+        // ---- Faculty ----
+        async function loadFaculty() {
+            const faculty = await fetch('/api/admin/faculty').then(r => r.json());
+            const select = document.getElementById('assignFaculty');
+            select.innerHTML = '<option value="">-- Select --</option>';
+            faculty.forEach(f => select.innerHTML += `<option value="${f.id}">${f.name}</option>`);
+
+            if (faculty.length === 0) {
+                document.getElementById('facultyTable').innerHTML = '<div class="empty-state"><div class="icon">👩‍🏫</div><h3>No faculty yet</h3></div>';
+                return;
+            }
+            let html = '<table><thead><tr><th>Name</th><th>Username</th><th>Email</th><th>Delete</th></tr></thead><tbody>';
+            faculty.forEach(f => html += `<tr><td>${f.name}</td><td>${f.username}</td><td>${f.email || '-'}</td>
+        <td><button class="btn btn-danger btn-sm" onclick="deleteFaculty(${f.id})">Delete</button></td></tr>`);
+            html += '</tbody></table>';
+            document.getElementById('facultyTable').innerHTML = html;
+        }
+
+        // ---- Students ----
+        async function loadYears() {
+            const years = await fetch('/api/admin/students/years').then(r => r.json());
+            const select = document.getElementById('yearFilter');
+            const current = select.value;
+            select.innerHTML = '<option value="all">All Years</option>';
+            years.forEach(y => select.innerHTML += `<option value="${y}" ${y === current ? 'selected' : ''}>${y}</option>`);
+        }
+
+        async function loadStudents() {
+            const year = document.getElementById('yearFilter').value;
+            const students = await fetch(`/api/admin/students?year=${year}`).then(r => r.json());
+            document.getElementById('studentCount').textContent = `${students.length} students`;
+
+            if (students.length === 0) {
+                document.getElementById('studentTable').innerHTML = '<div class="empty-state"><div class="icon">👨‍🎓</div><h3>No students</h3><p>Add students manually or upload a CSV/Excel file</p></div>';
+                return;
+            }
+            let html = '<table><thead><tr><th>Reg No</th><th>Name</th><th>Username</th><th>Year</th><th>Email</th><th>Delete</th></tr></thead><tbody>';
+            students.forEach(s => html += `<tr><td><strong>${s.regno || '-'}</strong></td><td>${s.name}</td><td>${s.username}</td><td><span class="badge badge-warning">${s.year || '-'}</span></td><td>${s.email || '-'}</td>
+        <td><button class="btn btn-danger btn-sm" onclick="deleteStudent(${s.id})">Delete</button></td></tr>`);
+            html += '</tbody></table>';
+            document.getElementById('studentTable').innerHTML = html;
+        }
+
+        // ---- Selections ----
+        async function loadSelections() {
+            const selections = await fetch('/api/admin/selections').then(r => r.json());
+            if (selections.length === 0) {
+                document.getElementById('selectionsTable').innerHTML = '<div class="empty-state"><div class="icon">📋</div><h3>No selections yet</h3></div>';
+                return;
+            }
+            let html = '<table><thead><tr><th>Reg No</th><th>Student</th><th>Course</th><th>Faculty</th><th>Date</th></tr></thead><tbody>';
+            selections.forEach(s => html += `<tr><td><strong>${s.student_regno || s.student_username}</strong></td><td>${s.student_name}</td>
+        <td><span class="badge badge-warning">${s.course_code}</span> ${s.course_name}</td><td>${s.faculty_name}</td>
+        <td style="font-size:12px;color:var(--text-muted)">${new Date(s.selected_at).toLocaleString()}</td></tr>`);
+            html += '</tbody></table>';
+            document.getElementById('selectionsTable').innerHTML = html;
+        }
+
+        // ---- Form Handlers ----
+        document.getElementById('addCourseForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const res = await fetch('/api/admin/courses', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code: document.getElementById('courseCode').value, name: document.getElementById('courseName').value, department: document.getElementById('courseDept').value })
+            });
+            const data = await res.json();
+            if (data.success) { showToast('Course added!', 'success'); e.target.reset(); loadCourses(); loadStats(); }
+            else showToast(data.error, 'error');
+        });
+
+        document.getElementById('assignFacultyForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const courseId = document.getElementById('assignCourse').value;
+            const res = await fetch(`/api/admin/courses/${courseId}/faculty`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ faculty_id: parseInt(document.getElementById('assignFaculty').value), max_seats: parseInt(document.getElementById('maxSeats').value) })
+            });
+            const data = await res.json();
+            if (data.success) { showToast('Faculty assigned!', 'success'); e.target.reset(); loadCourses(); }
+            else showToast(data.error, 'error');
+        });
+
+        document.getElementById('addFacultyForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const res = await fetch('/api/admin/faculty', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: document.getElementById('facultyName').value, username: document.getElementById('facultyUsername').value,
+                    password: document.getElementById('facultyPassword').value, email: document.getElementById('facultyEmail').value
+                })
+            });
+            const data = await res.json();
+            if (data.success) { showToast('Faculty added!', 'success'); e.target.reset(); loadFaculty(); loadStats(); }
+            else showToast(data.error, 'error');
+        });
+
+        document.getElementById('addStudentForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const regno = document.getElementById('studentRegno').value;
+            const res = await fetch('/api/admin/students', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    username: regno.toLowerCase().replace(/\s/g, ''), password: document.getElementById('studentPassword').value,
+                    name: document.getElementById('studentName').value, email: document.getElementById('studentEmail').value,
+                    regno: regno, year: document.getElementById('studentYear').value
+                })
+            });
+            const data = await res.json();
+            if (data.success) { showToast('Student added!', 'success'); e.target.reset(); loadStudents(); loadYears(); loadStats(); }
+            else showToast(data.error, 'error');
+        });
+
+        // ---- Bulk Upload ----
+        const uploadFile = document.getElementById('uploadFile');
+        uploadFile.addEventListener('change', () => {
+            const name = uploadFile.files[0]?.name;
+            const el = document.getElementById('fileName');
+            if (name) { el.textContent = '📎 ' + name; el.style.display = 'block'; }
+            else { el.style.display = 'none'; }
+        });
+
+        document.getElementById('bulkUploadForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const file = uploadFile.files[0];
+            if (!file) { showToast('Please select a file', 'error'); return; }
+
+            const btn = document.getElementById('uploadBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<div class="spinner"></div> Uploading...';
+
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('year', document.getElementById('uploadYear').value);
+            formData.append('default_password', document.getElementById('uploadPassword').value);
+
+            try {
+                const res = await fetch('/api/admin/students/bulk-upload', { method: 'POST', body: formData });
+                const data = await res.json();
+                const resultDiv = document.getElementById('uploadResult');
+
+                if (data.success) {
+                    let html = `<div class="upload-result success">
+            <strong>✅ Upload Complete!</strong><br>
+            <span style="font-size:20px;font-weight:700">${data.added}</span> students added,
+            <span>${data.skipped}</span> skipped (out of ${data.total} rows)`;
+                    if (data.errors.length > 0) {
+                        html += '<br><br><strong>Skipped rows:</strong><ul style="margin-top:6px;padding-left:20px;font-size:12px;color:var(--text-muted)">';
+                        data.errors.forEach(err => html += `<li>${err}</li>`);
+                        html += '</ul>';
+                    }
+                    html += '</div>';
+                    resultDiv.innerHTML = html;
+                    showToast(`${data.added} students imported!`, 'success');
+                    loadStudents(); loadYears(); loadStats();
+                    e.target.reset();
+                    document.getElementById('fileName').style.display = 'none';
+                } else {
+                    resultDiv.innerHTML = `<div class="upload-result error"><strong>❌ Error:</strong> ${data.error}</div>`;
+                    showToast(data.error, 'error');
+                }
+            } catch (err) {
+                showToast('Upload failed: ' + err.message, 'error');
+            }
+            btn.disabled = false;
+            btn.innerHTML = '⬆ Upload & Import Students';
+        });
+
+        // ---- Delete Actions ----
+        async function deleteCourse(id) {
+            if (!confirm('Delete this course and all assignments?')) return;
+            await fetch(`/api/admin/courses/${id}`, { method: 'DELETE' });
+            showToast('Course deleted', 'success'); loadCourses(); loadStats();
+        }
+        async function removeFacultyFromCourse(cfId) {
+            if (!confirm('Remove this faculty assignment?')) return;
+            await fetch(`/api/admin/course-faculty/${cfId}`, { method: 'DELETE' });
+            showToast('Faculty removed', 'success'); loadCourses();
+        }
+        async function deleteFaculty(id) {
+            if (!confirm('Delete this faculty? All course assignments will be removed.')) return;
+            await fetch(`/api/admin/faculty/${id}`, { method: 'DELETE' });
+            showToast('Faculty deleted', 'success'); loadFaculty(); loadStats();
+        }
+        async function deleteStudent(id) {
+            if (!confirm('Delete this student? All selections will be removed.')) return;
+            await fetch(`/api/admin/students/${id}`, { method: 'DELETE' });
+            showToast('Student deleted', 'success'); loadStudents(); loadStats();
+        }
+        function exportData(format) { window.open(`/api/admin/export/${format}`, '_blank'); }
+
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            toast.innerHTML = `${type === 'success' ? '✓' : type === 'error' ? '✗' : 'ℹ'} ${message}`;
+            container.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+
+        // Drag & drop visual
+        const zone = document.getElementById('uploadZone');
+        zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('dragover'); });
+        zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+        zone.addEventListener('drop', () => zone.classList.remove('dragover'));
+
+        checkAuth();
+    </script>
+</body>
+
+</html>

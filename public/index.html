@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FFCS - Faculty Course Selection System</title>
+    <link rel="stylesheet" href="/styles.css">
+</head>
+
+<body class="login-page">
+    <div class="login-container">
+        <div class="login-card">
+            <div class="login-header">
+                <div class="login-icon">🎓</div>
+                <h1>FFCS</h1>
+                <p>Faculty Course Selection System</p>
+            </div>
+
+            <!-- Login Form -->
+            <form id="loginForm">
+                <div class="form-group">
+                    <label>Username / Reg No</label>
+                    <input type="text" class="form-input" id="username" placeholder="Enter your username or reg no"
+                        required autofocus>
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" class="form-input" id="password" placeholder="Enter your password" required>
+                </div>
+                <button type="submit" class="btn btn-primary btn-full" id="loginBtn">Sign In</button>
+            </form>
+
+            <!-- Change Password Form (hidden initially) -->
+            <div id="changePasswordSection" style="display:none;">
+                <div style="text-align:center;margin-bottom:20px;">
+                    <div style="font-size:40px;">🔐</div>
+                    <h2 style="color:var(--accent-light);margin-top:8px;">Change Your Password</h2>
+                    <p style="color:var(--text-muted);font-size:13px;">For security, you must change your default
+                        password before continuing.</p>
+                </div>
+                <form id="changePasswordForm">
+                    <div class="form-group">
+                        <label>Current Password</label>
+                        <input type="password" class="form-input" id="currentPassword"
+                            placeholder="Enter current password" required>
+                    </div>
+                    <div class="form-group">
+                        <label>New Password</label>
+                        <input type="password" class="form-input" id="newPassword" placeholder="Min 6 characters"
+                            required minlength="6">
+                    </div>
+                    <div class="form-group">
+                        <label>Confirm New Password</label>
+                        <input type="password" class="form-input" id="confirmPassword"
+                            placeholder="Re-enter new password" required minlength="6">
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-full" id="changePwdBtn">Update Password &
+                        Continue</button>
+                </form>
+            </div>
+
+            <div id="errorMsg" class="error-msg" style="display:none;"></div>
+            <div id="successMsg" class="success-msg" style="display:none;"></div>
+        </div>
+    </div>
+
+    <script>
+        let loggedInUser = null;
+
+        // Check if already logged in
+        fetch('/api/auth/me').then(r => r.json()).then(data => {
+            if (data.user) {
+                if (data.must_change_password) {
+                    showChangePassword();
+                    loggedInUser = data.user;
+                } else {
+                    redirect(data.user.role);
+                }
+            }
+        }).catch(() => { });
+
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            hideMessages();
+            const btn = document.getElementById('loginBtn');
+            btn.disabled = true; btn.textContent = 'Signing in...';
+
+            try {
+                const res = await fetch('/api/auth/login', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: document.getElementById('username').value.trim().toLowerCase(), password: document.getElementById('password').value })
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    loggedInUser = data.user;
+                    if (data.must_change_password) {
+                        showChangePassword();
+                    } else {
+                        redirect(data.user.role);
+                    }
+                } else {
+                    showError(data.error || 'Invalid credentials');
+                }
+            } catch (err) {
+                showError('Connection failed. Server may be down.');
+            }
+            btn.disabled = false; btn.textContent = 'Sign In';
+        });
+
+        document.getElementById('changePasswordForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            hideMessages();
+            const newPwd = document.getElementById('newPassword').value;
+            const confirmPwd = document.getElementById('confirmPassword').value;
+
+            if (newPwd !== confirmPwd) { showError('Passwords do not match'); return; }
+            if (newPwd.length < 6) { showError('Password must be at least 6 characters'); return; }
+
+            const btn = document.getElementById('changePwdBtn');
+            btn.disabled = true; btn.textContent = 'Updating...';
+
+            try {
+                const res = await fetch('/api/auth/change-password', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ current_password: document.getElementById('currentPassword').value, new_password: newPwd })
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    showSuccess('Password changed! Redirecting...');
+                    setTimeout(() => redirect(loggedInUser.role), 1000);
+                } else {
+                    showError(data.error || 'Failed to change password');
+                }
+            } catch (err) {
+                showError('Connection failed');
+            }
+            btn.disabled = false; btn.textContent = 'Update Password & Continue';
+        });
+
+        function showChangePassword() {
+            document.getElementById('loginForm').style.display = 'none';
+            document.getElementById('changePasswordSection').style.display = 'block';
+        }
+
+        function redirect(role) {
+            if (role === 'admin') window.location.href = '/admin';
+            else if (role === 'faculty') window.location.href = '/faculty';
+            else window.location.href = '/student';
+        }
+
+        function showError(msg) {
+            const el = document.getElementById('errorMsg');
+            el.textContent = msg; el.style.display = 'block';
+        }
+        function showSuccess(msg) {
+            const el = document.getElementById('successMsg');
+            el.textContent = msg; el.style.display = 'block';
+        }
+        function hideMessages() {
+            document.getElementById('errorMsg').style.display = 'none';
+            document.getElementById('successMsg').style.display = 'none';
+        }
+    </script>
+</body>
+
+</html>

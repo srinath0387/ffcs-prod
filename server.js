@@ -106,9 +106,10 @@ function setupRoutes() {
                 return res.status(400).json({ error: 'Current password is incorrect' });
 
             const newHash = bcrypt.hashSync(new_password, 10);
-            await dbRun('UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ?', [newHash, user.id]);
+            await dbRun('UPDATE users SET password_hash = ?, must_change_password = FALSE WHERE id = ?', [newHash, user.id]);
             res.json({ success: true, message: 'Password changed successfully!' });
         } catch (e) {
+            console.error("CHANGE PASSWORD ERROR:", e);
             res.status(500).json({ error: 'Failed to change password' });
         }
     });

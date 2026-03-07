@@ -460,9 +460,9 @@
                 document.getElementById('facultyTable').innerHTML = '<div class="empty-state"><div class="icon">👩‍🏫</div><h3>No faculty yet</h3></div>';
                 return;
             }
-            let html = '<table><thead><tr><th>Name</th><th>Username</th><th>Email</th><th>Delete</th></tr></thead><tbody>';
+            let html = '<table><thead><tr><th>Name</th><th>Username</th><th>Email</th><th>Actions</th></tr></thead><tbody>';
             faculty.forEach(f => html += `<tr><td>${f.name}</td><td>${f.username}</td><td>${f.email || '-'}</td>
-        <td><button class="btn btn-danger btn-sm" onclick="deleteFaculty(${f.id})">Delete</button></td></tr>`);
+        <td style="display:flex;gap:6px;"><button class="btn btn-outline btn-sm" onclick="resetPassword(${f.id},'${f.username}')">🔑 Reset Pwd</button><button class="btn btn-danger btn-sm" onclick="deleteFaculty(${f.id})">Delete</button></td></tr>`);
             html += '</tbody></table>';
             document.getElementById('facultyTable').innerHTML = html;
         }
@@ -485,9 +485,9 @@
                 document.getElementById('studentTable').innerHTML = '<div class="empty-state"><div class="icon">👨‍🎓</div><h3>No students</h3><p>Add students manually or upload a CSV/Excel file</p></div>';
                 return;
             }
-            let html = '<table><thead><tr><th>Reg No</th><th>Name</th><th>Username</th><th>Year</th><th>Email</th><th>Delete</th></tr></thead><tbody>';
+            let html = '<table><thead><tr><th>Reg No</th><th>Name</th><th>Username</th><th>Year</th><th>Email</th><th>Actions</th></tr></thead><tbody>';
             students.forEach(s => html += `<tr><td><strong>${s.regno || '-'}</strong></td><td>${s.name}</td><td>${s.username}</td><td><span class="badge badge-warning">${s.year || '-'}</span></td><td>${s.email || '-'}</td>
-        <td><button class="btn btn-danger btn-sm" onclick="deleteStudent(${s.id})">Delete</button></td></tr>`);
+        <td style="display:flex;gap:6px;"><button class="btn btn-outline btn-sm" onclick="resetPassword(${s.id},'${s.username}')">🔑 Reset Pwd</button><button class="btn btn-danger btn-sm" onclick="deleteStudent(${s.id})">Delete</button></td></tr>`);
             html += '</tbody></table>';
             document.getElementById('studentTable').innerHTML = html;
         }
@@ -636,6 +636,18 @@
             if (!confirm('Delete this student? All selections will be removed.')) return;
             await fetch(`/api/admin/students/${id}`, { method: 'DELETE' });
             showToast('Student deleted', 'success'); loadStudents(); loadStats();
+        }
+        async function resetPassword(id, username) {
+            const newPwd = prompt(`Reset password for "${username}"?\n\nEnter new password (min 6 chars):`, 'student123');
+            if (!newPwd) return;
+            if (newPwd.length < 6) { showToast('Password must be at least 6 characters', 'error'); return; }
+            const res = await fetch(`/api/admin/reset-password/${id}`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ new_password: newPwd })
+            });
+            const data = await res.json();
+            if (data.success) showToast(data.message, 'success');
+            else showToast(data.error, 'error');
         }
         function exportData(format) { window.open(`/api/admin/export/${format}`, '_blank'); }
 

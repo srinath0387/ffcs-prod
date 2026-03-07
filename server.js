@@ -178,6 +178,24 @@ function setupRoutes() {
         } catch (e) { res.status(400).json({ error: 'Username already exists' }); }
     });
 
+    // --- Admin Reset Password ---
+    app.post('/api/admin/reset-password/:id', requireAuth, requireRole('admin'), async (req, res) => {
+        try {
+            const userId = parseInt(req.params.id);
+            const newPassword = req.body.new_password || 'student123';
+            const user = await dbGet('SELECT id, username, role FROM users WHERE id = ?', [userId]);
+            if (!user) return res.status(404).json({ error: 'User not found' });
+            if (user.role === 'admin') return res.status(400).json({ error: 'Cannot reset admin password from here' });
+
+            const hash = bcrypt.hashSync(newPassword, 10);
+            await dbRun('UPDATE users SET password_hash = ?, must_change_password = TRUE WHERE id = ?', [hash, userId]);
+            res.json({ success: true, message: `Password reset to "${newPassword}" for ${user.username}. They will be asked to change it on next login.` });
+        } catch (e) {
+            console.error("RESET PASSWORD ERROR:", e);
+            res.status(500).json({ error: 'Failed to reset password' });
+        }
+    });
+
     app.delete('/api/admin/faculty/:id', requireAuth, requireRole('admin'), async (req, res) => {
         const id = parseInt(req.params.id);
         await dbRun('DELETE FROM selections WHERE course_faculty_id IN (SELECT cf.id FROM course_faculty cf WHERE cf.faculty_id = ?)', [id]);

@@ -75,6 +75,7 @@ function setupRoutes() {
                 must_change_password: !!user.must_change_password
             });
         } catch (e) {
+            console.error("LOGIN ERROR:", e);
             res.status(500).json({ error: 'Login failed' });
         }
     });

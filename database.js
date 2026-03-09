@@ -81,6 +81,16 @@ async function initPostgres() {
   `);
   await pool.query(`CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" ("expire")`);
 
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    )
+  `);
+  try {
+    await pool.query("INSERT INTO settings (key, value) VALUES ('registration_open', 'true') ON CONFLICT DO NOTHING");
+  } catch (e) { }
+
   // Seed admin if needed
   const result = await pool.query('SELECT COUNT(*) as count FROM users');
   if (parseInt(result.rows[0].count) === 0) {
@@ -136,6 +146,14 @@ async function initSqlite() {
     FOREIGN KEY (course_faculty_id) REFERENCES course_faculty(id) ON DELETE CASCADE,
     UNIQUE(student_id, course_faculty_id)
   )`);
+
+  sqliteDb.run(`CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  )`);
+  try {
+    sqliteDb.run("INSERT OR IGNORE INTO settings (key, value) VALUES ('registration_open', 'true')");
+  } catch (e) { }
 
   // Check for must_change_password column (migration for existing DBs)
   try {

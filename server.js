@@ -397,6 +397,18 @@ function setupRoutes() {
         res.json(courses);
     });
 
+    // ============ SETTINGS ROUTES ============
+    app.get('/api/settings', async (req, res) => {
+        const setting = await dbGet("SELECT value FROM settings WHERE key = 'registration_open'");
+        res.json({ registration_open: setting ? setting.value === 'true' : true });
+    });
+
+    app.post('/api/admin/settings', requireAuth, requireRole('admin'), async (req, res) => {
+        const { registration_open } = req.body;
+        await dbRun("UPDATE settings SET value = ? WHERE key = 'registration_open'", [registration_open ? 'true' : 'false']);
+        res.json({ success: true });
+    });
+
     // ============ STUDENT ROUTES ============
 
     app.get('/api/student/courses', requireAuth, requireRole('student'), async (req, res) => {
@@ -429,19 +441,38 @@ function setupRoutes() {
 
     app.post('/api/student/select', requireAuth, requireRole('student'), async (req, res) => {
         try {
+            const setting = await dbGet("SELECT value FROM settings WHERE key = 'registration_open'");
+            if (setting && setting.value === 'false') return res.status(403).json({ error: 'Registration is currently closed' });
+
             const { course_faculty_id } = req.body;
             const cf = await dbGet('SELECT cf.*, c.name as course_name FROM course_faculty cf JOIN courses c ON cf.course_id = c.id WHERE cf.id = ?', [course_faculty_id]);
             if (!cf) return res.status(404).json({ error: 'Slot not found' });
-            if (cf.enrolled_count >= cf.max_seats) return res.status(400).json({ error: 'Slots are full for this faculty!' });
 
             const existing = await dbGet('SELECT s.id FROM selections s JOIN course_faculty cf2 ON s.course_faculty_id = cf2.id WHERE s.student_id = ? AND cf2.course_id = ?',
                 [req.session.user.id, cf.course_id]);
             if (existing) return res.status(400).json({ error: 'You already selected a faculty for this course' });
 
-            await dbInsert('INSERT INTO selections (student_id, course_faculty_id) VALUES (?, ?)', [req.session.user.id, course_faculty_id]);
-            await dbRun('UPDATE course_faculty SET enrolled_count = enrolled_count + 1 WHERE id = ?', [course_faculty_id]);
-            res.json({ success: true, message: 'Faculty selected successfully!' });
-        } catch (e) { res.status(400).json({ error: 'Selection failed' }); }
+            // Atomic enrollment step
+            if (process.env.DATABASE_URL) {
+                // PostgreSQL: Atomic update using RETURNING guarantees 100% strict limit enforcement under high concurrency
+                const updatedRow = await dbGet('UPDATE course_faculty SET enrolled_count = enrolled_count + 1 WHERE id = ? AND enrolled_count < max_seats RETURNING id', [cf.id]);
+                if (!updatedRow) return res.status(400).json({ error: 'Slots are full for this faculty!' });
+            } else {
+                // SQLite local mode: Sync operations
+                const check = await dbGet('SELECT enrolled_count, max_seats FROM course_faculty WHERE id = ?', [cf.id]);
+                if (!check || check.enrolled_count >= check.max_seats) return res.status(400).json({ error: 'Slots are full for this faculty!' });
+                await dbRun('UPDATE course_faculty SET enrolled_count = enrolled_count + 1 WHERE id = ?', [cf.id]);
+            }
+
+            try {
+                await dbInsert('INSERT INTO selections (student_id, course_faculty_id) VALUES (?, ?)', [req.session.user.id, course_faculty_id]);
+                res.json({ success: true, message: 'Faculty selected successfully!' });
+            } catch (insertErr) {
+                // Rollback count if user double-clicked and hit UNIQUE constraint
+                await dbRun('UPDATE course_faculty SET enrolled_count = enrolled_count - 1 WHERE id = ?', [cf.id]);
+                return res.status(400).json({ error: 'Selection failed - you may have already selected this' });
+            }
+        } catch (e) { res.status(400).json({ error: 'Selection process failed due to server error' }); }
     });
 
     app.delete('/api/student/selections/:id', requireAuth, requireRole('student'), async (req, res) => {

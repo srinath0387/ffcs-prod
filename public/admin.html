@@ -109,9 +109,19 @@
         </div>
 
         <div class="main-content">
-            <div class="page-header">
-                <h1>📊 Admin Dashboard</h1>
-                <p>Manage courses, faculty, students, and view selection reports</p>
+            <div class="page-header"
+                style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+                <div>
+                    <h1>📊 Admin Dashboard</h1>
+                    <p>Manage courses, faculty, students, and view selection reports</p>
+                </div>
+                <div>
+                    <button id="regToggleBtn" class="btn"
+                        style="min-width: 180px; font-weight: bold; background: var(--surface-light); color: var(--text-main);"
+                        onclick="toggleRegistration()">
+                        ⏳ Loading Status...
+                    </button>
+                </div>
             </div>
 
             <div class="stats-grid" id="statsGrid"></div>
@@ -428,10 +438,10 @@
                 const res = await fetch('/api/auth/me');
                 const data = await res.json();
                 if (!data.user || data.user.role !== 'admin') { window.location.href = '/'; return; }
-                currentUser = data.user;
-                document.getElementById('userName').textContent = currentUser.name;
-                document.getElementById('userAvatar').textContent = currentUser.name.charAt(0);
-                loadAll();
+                document.getElementById('userName').textContent = data.user.name;
+                document.getElementById('userAvatar').textContent = data.user.name.charAt(0);
+                loadRegistrationSettings();
+                loadStats(); loadFaculty(); loadCourses(); loadStudents(); loadSelections(); loadCourseYears(); loadYears();
             } catch { window.location.href = '/'; }
         }
 
@@ -681,6 +691,41 @@
             await fetch(`/api/admin/course-faculty/${cfId}`, { method: 'DELETE' });
             showToast('Faculty removed', 'success'); loadCourses();
         }
+        let isRegistrationOpen = true;
+        async function loadRegistrationSettings() {
+            try {
+                const res = await fetch('/api/settings');
+                const data = await res.json();
+                isRegistrationOpen = data.registration_open !== false;
+                updateRegistrationBtn();
+            } catch (e) { }
+        }
+        function updateRegistrationBtn() {
+            const btn = document.getElementById('regToggleBtn');
+            if (isRegistrationOpen) {
+                btn.innerHTML = '🟢 Registration is OPEN (Click to Close)';
+                btn.style.background = 'var(--success)';
+                btn.style.color = '#fff';
+            } else {
+                btn.innerHTML = '🔴 Registration is CLOSED (Click to Open)';
+                btn.style.background = 'var(--danger)';
+                btn.style.color = '#fff';
+            }
+        }
+        async function toggleRegistration() {
+            const newState = !isRegistrationOpen;
+            if (!confirm(`Are you sure you want to ${newState ? 'OPEN' : 'CLOSE'} registration?`)) return;
+            const res = await fetch('/api/admin/settings', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ registration_open: newState })
+            });
+            if (res.ok) {
+                isRegistrationOpen = newState;
+                updateRegistrationBtn();
+                showToast(`Registration is now ${newState ? 'OPEN' : 'CLOSED'}`, 'success');
+            }
+        }
+
         async function deleteFaculty(id) {
             if (!confirm('Delete this faculty? All course assignments will be removed.')) return;
             await fetch(`/api/admin/faculty/${id}`, { method: 'DELETE' });

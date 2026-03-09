@@ -123,9 +123,16 @@
         </div>
 
         <div class="main-content">
-            <div class="page-header">
-                <h1>🎯 Faculty Selection</h1>
-                <p>Choose your preferred faculty for each course. Seats are limited!</p>
+            <div class="page-header"
+                style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px;">
+                <div>
+                    <h1>🎯 Faculty Selection</h1>
+                    <p>Choose your preferred faculty for each course. Seats are limited!</p>
+                </div>
+                <div id="regClosedBanner"
+                    style="display: none; background: rgba(239,68,68,0.1); color: var(--danger); padding: 10px 16px; border-radius: 8px; border: 1px solid rgba(239,68,68,0.2); font-weight: 600;">
+                    🚫 Registration is Currently Closed
+                </div>
             </div>
 
             <div id="selectionsBar"></div>
@@ -139,9 +146,21 @@
     <script>
         let currentUser = null;
         let mustChangePassword = false;
+        let isRegistrationOpen = true;
 
         async function checkAuth() {
             try {
+                // Fetch settings first
+                try {
+                    const settingsRes = await fetch('/api/settings');
+                    const settingsData = await settingsRes.json();
+                    isRegistrationOpen = settingsData.registration_open !== false;
+                } catch (e) { }
+
+                if (!isRegistrationOpen) {
+                    document.getElementById('regClosedBanner').style.display = 'block';
+                }
+
                 const res = await fetch('/api/auth/me');
                 const data = await res.json();
                 if (!data.user || data.user.role !== 'student') { window.location.href = '/'; return; }
@@ -221,7 +240,7 @@
                 ${selections.map(s => `
                   <span class="badge badge-info" style="font-size:13px;padding:6px 12px;">
                     ${s.code}: ${s.faculty_name}
-                    <span onclick="dropSelection(${s.id})" style="cursor:pointer;margin-left:6px;color:#ef4444;">✕</span>
+                    ${isRegistrationOpen ? `<span onclick="dropSelection(${s.id})" style="cursor:pointer;margin-left:6px;color:#ef4444;">✕</span>` : ''}
                   </span>
                 `).join('')}
               </div>
@@ -281,7 +300,8 @@
                   ${isSelected ? '<span class="badge badge-success">✓ SELECTED</span>'
                             : isFull ? '<span class="slots-full">SLOTS FULL</span>'
                                 : hasOther ? '<span class="badge badge-warning" style="font-size:10px;">ALREADY CHOSE FOR THIS COURSE</span>'
-                                    : `<button class="btn btn-primary btn-sm" onclick="selectFaculty(${f.course_faculty_id})">Select</button>`}
+                                    : !isRegistrationOpen ? '<span class="badge" style="background:#e5e7eb;color:#6b7280;">CLOSED</span>'
+                                        : `<button class="btn btn-primary btn-sm" onclick="selectFaculty(${f.course_faculty_id})">Select</button>`}
                 </div>
               </div>`;
                 }).join('')}

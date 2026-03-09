@@ -388,9 +388,12 @@ function setupRoutes() {
         const student = await dbGet('SELECT year FROM users WHERE id = ?', [req.session.user.id]);
         const studentYear = student ? student.year : '';
 
+        // Only filter if student year matches semester format (e.g., II-I, III-II)
+        const isSemesterFormat = /^(I|II|III|IV)-(I|II)$/.test(studentYear);
+
         let sql = 'SELECT * FROM courses';
         const params = [];
-        if (studentYear) { sql += ' WHERE year = ?'; params.push(studentYear); }
+        if (isSemesterFormat) { sql += ' WHERE year = ?'; params.push(studentYear); }
         sql += ' ORDER BY code';
         const courses = await dbAll(sql, params);
 

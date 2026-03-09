@@ -118,16 +118,23 @@ function setupRoutes() {
 
     // --- Courses ---
     app.get('/api/admin/courses', requireAuth, requireRole('admin'), async (req, res) => {
-        res.json(await dbAll(`
-    SELECT c.*, (SELECT COUNT(*) FROM course_faculty cf WHERE cf.course_id = c.id) as faculty_count
-    FROM courses c ORDER BY c.code
-  `));
+        const year = req.query.year;
+        let sql = `SELECT c.*, (SELECT COUNT(*) FROM course_faculty cf WHERE cf.course_id = c.id) as faculty_count FROM courses c`;
+        const params = [];
+        if (year && year !== 'all') { sql += ' WHERE c.year = ?'; params.push(year); }
+        sql += ' ORDER BY c.year, c.code';
+        res.json(await dbAll(sql, params));
+    });
+
+    app.get('/api/admin/courses/years', requireAuth, requireRole('admin'), async (req, res) => {
+        const years = await dbAll("SELECT DISTINCT year FROM courses WHERE year IS NOT NULL AND year != '' ORDER BY year");
+        res.json(years.map(y => y.year));
     });
 
     app.post('/api/admin/courses', requireAuth, requireRole('admin'), async (req, res) => {
         try {
-            const { code, name, department } = req.body;
-            const id = await dbInsert('INSERT INTO courses (code, name, department) VALUES (?, ?, ?)', [code, name, department]);
+            const { code, name, department, year } = req.body;
+            const id = await dbInsert('INSERT INTO courses (code, name, department, year) VALUES (?, ?, ?, ?)', [code, name, department, year || '']);
             res.json({ success: true, id });
         } catch (e) { res.status(400).json({ error: 'Course code already exists' }); }
     });
@@ -377,7 +384,16 @@ function setupRoutes() {
     // ============ STUDENT ROUTES ============
 
     app.get('/api/student/courses', requireAuth, requireRole('student'), async (req, res) => {
-        const courses = await dbAll('SELECT * FROM courses ORDER BY code');
+        // Get student's year to filter courses
+        const student = await dbGet('SELECT year FROM users WHERE id = ?', [req.session.user.id]);
+        const studentYear = student ? student.year : '';
+
+        let sql = 'SELECT * FROM courses';
+        const params = [];
+        if (studentYear) { sql += ' WHERE year = ?'; params.push(studentYear); }
+        sql += ' ORDER BY code';
+        const courses = await dbAll(sql, params);
+
         for (const course of courses) {
             course.faculty = await dbAll(`
       SELECT cf.id as course_faculty_id, cf.max_seats, cf.enrolled_count,

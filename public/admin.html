@@ -148,6 +148,20 @@
                                     <input type="text" class="form-input" id="courseDept"
                                         placeholder="e.g. Computer Science" required>
                                 </div>
+                                <div class="form-group">
+                                    <label>Year / Semester</label>
+                                    <select class="form-input" id="courseYear" required>
+                                        <option value="">-- Select Year --</option>
+                                        <option value="I-I">I-I (1st Year, 1st Sem)</option>
+                                        <option value="I-II">I-II (1st Year, 2nd Sem)</option>
+                                        <option value="II-I">II-I (2nd Year, 1st Sem)</option>
+                                        <option value="II-II">II-II (2nd Year, 2nd Sem)</option>
+                                        <option value="III-I">III-I (3rd Year, 1st Sem)</option>
+                                        <option value="III-II">III-II (3rd Year, 2nd Sem)</option>
+                                        <option value="IV-I">IV-I (4th Year, 1st Sem)</option>
+                                        <option value="IV-II">IV-II (4th Year, 2nd Sem)</option>
+                                    </select>
+                                </div>
                                 <div class="form-actions">
                                     <button type="submit" class="btn btn-primary">Add Course</button>
                                 </div>
@@ -187,6 +201,13 @@
                 <div class="card" style="margin-top: 24px;">
                     <div class="card-header">
                         <h3>📚 All Courses</h3>
+                        <div class="year-filter">
+                            <label>Filter:</label>
+                            <select class="form-input" id="courseYearFilter" onchange="loadCourses()"
+                                style="width:auto;min-width:140px;">
+                                <option value="all">All Years</option>
+                            </select>
+                        </div>
                     </div>
                     <div class="card-body">
                         <div class="table-wrap" id="coursesTable"></div>
@@ -427,13 +448,22 @@
         }
 
         // ---- Courses ----
+        async function loadCourseYears() {
+            const years = await fetch('/api/admin/courses/years').then(r => r.json());
+            const select = document.getElementById('courseYearFilter');
+            const current = select.value;
+            select.innerHTML = '<option value="all">All Years</option>';
+            years.forEach(y => select.innerHTML += `<option value="${y}" ${y === current ? 'selected' : ''}>${y}</option>`);
+        }
+
         async function loadCourses() {
-            const courses = await fetch('/api/admin/courses').then(r => r.json());
+            const yearFilter = document.getElementById('courseYearFilter').value;
+            const courses = await fetch(`/api/admin/courses?year=${yearFilter}`).then(r => r.json());
             const select = document.getElementById('assignCourse');
             select.innerHTML = '<option value="">-- Select --</option>';
-            courses.forEach(c => select.innerHTML += `<option value="${c.id}">${c.code} - ${c.name}</option>`);
+            courses.forEach(c => select.innerHTML += `<option value="${c.id}">${c.code} - ${c.name} (${c.year || 'No Year'})</option>`);
 
-            let html = '<table><thead><tr><th>Code</th><th>Course</th><th>Dept</th><th>Faculty</th><th>Actions</th></tr></thead><tbody>';
+            let html = '<table><thead><tr><th>Code</th><th>Course</th><th>Year</th><th>Dept</th><th>Faculty</th><th>Actions</th></tr></thead><tbody>';
             for (const c of courses) {
                 const faculty = await fetch(`/api/admin/courses/${c.id}/faculty`).then(r => r.json());
                 let fHtml = faculty.length === 0 ? '<span style="color:var(--text-muted)">None</span>' :
@@ -442,11 +472,12 @@
             <span style="font-size:11px;color:var(--text-muted)">${f.enrolled_count}/${f.max_seats}</span>
             <button class="btn btn-danger btn-sm" style="padding:2px 6px;font-size:10px;" onclick="removeFacultyFromCourse(${f.id})">✕</button>
           </div>`).join('');
-                html += `<tr><td><span class="badge badge-info">${c.code}</span></td><td>${c.name}</td><td>${c.department || '-'}</td><td>${fHtml}</td>
+                html += `<tr><td><span class="badge badge-info">${c.code}</span></td><td>${c.name}</td><td><span class="badge badge-warning">${c.year || '-'}</span></td><td>${c.department || '-'}</td><td>${fHtml}</td>
           <td><button class="btn btn-danger btn-sm" onclick="deleteCourse(${c.id})">Delete</button></td></tr>`;
             }
             html += '</tbody></table>';
             document.getElementById('coursesTable').innerHTML = html;
+            loadCourseYears();
         }
 
         // ---- Faculty ----
@@ -512,7 +543,7 @@
             e.preventDefault();
             const res = await fetch('/api/admin/courses', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ code: document.getElementById('courseCode').value, name: document.getElementById('courseName').value, department: document.getElementById('courseDept').value })
+                body: JSON.stringify({ code: document.getElementById('courseCode').value, name: document.getElementById('courseName').value, department: document.getElementById('courseDept').value, year: document.getElementById('courseYear').value })
             });
             const data = await res.json();
             if (data.success) { showToast('Course added!', 'success'); e.target.reset(); loadCourses(); loadStats(); }

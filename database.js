@@ -41,9 +41,13 @@ async function initPostgres() {
       code TEXT UNIQUE NOT NULL,
       name TEXT NOT NULL,
       department TEXT DEFAULT '',
+      year TEXT DEFAULT '',
       created_at TIMESTAMP DEFAULT NOW()
     )
   `);
+
+  // Migration: add year column if missing
+  try { await pool.query('ALTER TABLE courses ADD COLUMN year TEXT DEFAULT \'\''); } catch (e) { /* column already exists */ }
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS course_faculty (
@@ -112,7 +116,8 @@ async function initSqlite() {
 
   sqliteDb.run(`CREATE TABLE IF NOT EXISTS courses (
     id INTEGER PRIMARY KEY AUTOINCREMENT, code TEXT UNIQUE NOT NULL,
-    name TEXT NOT NULL, department TEXT DEFAULT '', created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    name TEXT NOT NULL, department TEXT DEFAULT '', year TEXT DEFAULT '',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )`);
 
   sqliteDb.run(`CREATE TABLE IF NOT EXISTS course_faculty (

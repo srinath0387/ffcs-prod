@@ -238,6 +238,22 @@ function setupRoutes() {
         res.json({ success: true });
     });
 
+    // --- Bulk Delete Students ---
+    app.post('/api/admin/students/bulk-delete', requireAuth, requireRole('admin'), async (req, res) => {
+        try {
+            const { ids } = req.body;
+            if (!ids || !Array.isArray(ids) || ids.length === 0) return res.status(400).json({ error: 'No students selected' });
+            for (const id of ids) {
+                await dbRun('DELETE FROM selections WHERE student_id = ?', [id]);
+                await dbRun("DELETE FROM users WHERE id = ? AND role = 'student'", [id]);
+            }
+            res.json({ success: true, deleted: ids.length });
+        } catch (e) {
+            console.error("BULK DELETE ERROR:", e);
+            res.status(500).json({ error: 'Failed to delete students' });
+        }
+    });
+
     // --- Bulk Upload ---
     app.post('/api/admin/students/bulk-upload', requireAuth, requireRole('admin'), upload.single('file'), async (req, res) => {
         if (!req.file) return res.status(400).json({ error: 'No file uploaded' });

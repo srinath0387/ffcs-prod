@@ -278,9 +278,18 @@
                         <form id="bulkUploadForm" enctype="multipart/form-data">
                             <div class="form-row">
                                 <div class="form-group">
-                                    <label>Academic Year / Batch</label>
-                                    <input type="text" class="form-input" id="uploadYear" placeholder="e.g. 2024-2025"
-                                        required>
+                                    <label>Year / Semester</label>
+                                    <select class="form-input" id="uploadYear" required>
+                                        <option value="">-- Select --</option>
+                                        <option value="I-I">I-I</option>
+                                        <option value="I-II">I-II</option>
+                                        <option value="II-I">II-I</option>
+                                        <option value="II-II">II-II</option>
+                                        <option value="III-I">III-I</option>
+                                        <option value="III-II">III-II</option>
+                                        <option value="IV-I">IV-I</option>
+                                        <option value="IV-II">IV-II</option>
+                                    </select>
                                 </div>
                                 <div class="form-group">
                                     <label>Default Password (for all students)</label>
@@ -334,8 +343,18 @@
                                         placeholder="e.g. john@ffcs.edu">
                                 </div>
                                 <div class="form-group">
-                                    <label>Year / Batch</label>
-                                    <input type="text" class="form-input" id="studentYear" placeholder="e.g. 2024-2025">
+                                    <label>Year / Semester</label>
+                                    <select class="form-input" id="studentYear" required>
+                                        <option value="">-- Select --</option>
+                                        <option value="I-I">I-I</option>
+                                        <option value="I-II">I-II</option>
+                                        <option value="II-I">II-I</option>
+                                        <option value="II-II">II-II</option>
+                                        <option value="III-I">III-I</option>
+                                        <option value="III-II">III-II</option>
+                                        <option value="IV-I">IV-I</option>
+                                        <option value="IV-II">IV-II</option>
+                                    </select>
                                 </div>
                                 <div class="form-actions">
                                     <button type="submit" class="btn btn-primary">Add Student</button>
@@ -348,6 +367,9 @@
                     <div class="card">
                         <div class="card-header">
                             <h3>👨‍🎓 Student List</h3>
+                            <button class="btn btn-danger btn-sm" id="bulkDeleteBtn" style="display:none;"
+                                onclick="bulkDeleteStudents()">🗑️ Delete Selected (<span
+                                    id="selectedCount">0</span>)</button>
                         </div>
                         <div class="card-body">
                             <div class="year-filter">
@@ -516,11 +538,12 @@
                 document.getElementById('studentTable').innerHTML = '<div class="empty-state"><div class="icon">👨‍🎓</div><h3>No students</h3><p>Add students manually or upload a CSV/Excel file</p></div>';
                 return;
             }
-            let html = '<table><thead><tr><th>Reg No</th><th>Name</th><th>Username</th><th>Year</th><th>Email</th><th>Actions</th></tr></thead><tbody>';
-            students.forEach(s => html += `<tr><td><strong>${s.regno || '-'}</strong></td><td>${s.name}</td><td>${s.username}</td><td><span class="badge badge-warning">${s.year || '-'}</span></td><td>${s.email || '-'}</td>
+            let html = '<table><thead><tr><th><input type="checkbox" id="selectAllStudents" onchange="toggleSelectAll(this)"></th><th>Reg No</th><th>Name</th><th>Username</th><th>Year</th><th>Email</th><th>Actions</th></tr></thead><tbody>';
+            students.forEach(s => html += `<tr><td><input type="checkbox" class="student-checkbox" value="${s.id}" onchange="updateBulkDeleteBtn()"></td><td><strong>${s.regno || '-'}</strong></td><td>${s.name}</td><td>${s.username}</td><td><span class="badge badge-warning">${s.year || '-'}</span></td><td>${s.email || '-'}</td>
         <td style="display:flex;gap:6px;"><button class="btn btn-outline btn-sm" onclick="resetPassword(${s.id},'${s.username}')">🔑 Reset Pwd</button><button class="btn btn-danger btn-sm" onclick="deleteStudent(${s.id})">Delete</button></td></tr>`);
             html += '</tbody></table>';
             document.getElementById('studentTable').innerHTML = html;
+            updateBulkDeleteBtn();
         }
 
         // ---- Selections ----
@@ -667,6 +690,29 @@
             if (!confirm('Delete this student? All selections will be removed.')) return;
             await fetch(`/api/admin/students/${id}`, { method: 'DELETE' });
             showToast('Student deleted', 'success'); loadStudents(); loadStats();
+        }
+        function toggleSelectAll(el) {
+            document.querySelectorAll('.student-checkbox').forEach(cb => cb.checked = el.checked);
+            updateBulkDeleteBtn();
+        }
+        function updateBulkDeleteBtn() {
+            const checked = document.querySelectorAll('.student-checkbox:checked');
+            const btn = document.getElementById('bulkDeleteBtn');
+            const countEl = document.getElementById('selectedCount');
+            if (checked.length > 0) { btn.style.display = 'inline-flex'; countEl.textContent = checked.length; }
+            else { btn.style.display = 'none'; }
+        }
+        async function bulkDeleteStudents() {
+            const checked = document.querySelectorAll('.student-checkbox:checked');
+            const ids = Array.from(checked).map(cb => parseInt(cb.value));
+            if (!confirm(`Delete ${ids.length} selected students? All their selections will be removed.`)) return;
+            const res = await fetch('/api/admin/students/bulk-delete', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ids })
+            });
+            const data = await res.json();
+            if (data.success) { showToast(`${data.deleted} students deleted`, 'success'); loadStudents(); loadStats(); }
+            else showToast(data.error, 'error');
         }
         async function resetPassword(id, username) {
             const newPwd = prompt(`Reset password for "${username}"?\n\nEnter new password (min 6 chars):`, 'student123');

@@ -90,7 +90,11 @@
 </head>
 
 <body>
-    <div class="dashboard">
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+
+    <div class="dashboard" style="animation: fadeInUp 0.8s ease-out;">
         <div class="topbar">
             <div class="topbar-brand">
                 <div class="icon">🎓</div>
@@ -784,12 +788,17 @@
 
         // Drag & drop visual
         const zone = document.getElementById('uploadZone');
-        zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('dragover'); });
-        zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
-        zone.addEventListener('drop', () => zone.classList.remove('dragover'));
+        if (zone) {
+            zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('dragover'); });
+            zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+            zone.addEventListener('drop', () => zone.classList.remove('dragover'));
+        }
 
         checkAuth();
     </script>
+    <div class="branding-footer">
+        Created by <strong>Srinath Reddy</strong> | FFCS System v2.0
+    </div>
 </body>
 
 </html>

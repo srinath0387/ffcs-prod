@@ -150,6 +150,17 @@
     <div class="toast-container" id="toastContainer"></div>
 
     <script>
+        // Interactive 3D Effect for Cards
+        document.addEventListener('mousemove', (e) => {
+            const cards = document.querySelectorAll('.course-card, .card, .profile-card');
+            cards.forEach(card => {
+                const rect = card.getBoundingClientRect();
+                const x = e.clientX - rect.left - rect.width / 2;
+                const y = e.clientY - rect.top - rect.height / 2;
+                card.style.transform = `perspective(1000px) rotateY(${x / 40}deg) rotateX(${-y / 40}deg) translateZ(10px)`;
+            });
+        });
+
         let currentUser = null;
         let mustChangePassword = false;
         let isRegistrationOpen = true;
